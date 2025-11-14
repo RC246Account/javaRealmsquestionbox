@@ -93,78 +93,69 @@ public class AssetSetter {
 	// MONSTER WAVES / INITIAL SPAWN
 	// For map 0: spawn one slime per question (no respawn)
 	public void setMonster() {
-        currentWave = 0; // reset for new map
+	    currentWave = 0; // reset for new map
 
-        // Map 0: spawn all map0 slimes (one per question)
-        if (gp.map0JSON == null || gp.map0QuestionsOrder == null || gp.map0QuestionsOrder.length == 0) {
-            // ensure JSON is loaded
-            gp.loadMap0JSON("res/data/all_question_chap1.json");
-            gp.shuffleQuestions();
-        }
+	    // Always ensure monsters are cleared on MAP 0 (ONLY do in resetGame, not here)
 
-        if (gp.map0JSON != null && gp.map0JSON.size() > 0) {
-            spawnAllMap0Slimes();
-        }
+	    // Map 0: spawn all map0 slimes (one per question)
+	    if (gp.map0JSON == null || gp.map0QuestionsOrder == null || gp.map0QuestionsOrder.length == 0) {
+	        gp.loadMap0JSON("res/data/all_question_chap1.json");
+	        gp.shuffleQuestions();
+	    }
 
-        // For other maps/waves, fallback to original wave behavior if desired
-        // Start wave 1 for map 1+ (keeps existing behavior)
-        // Example: start waves for map 1 only
-        // startNextWave(1);
-    }
+	    if (gp.map0JSON != null && gp.map0JSON.size() > 0) {
+	        spawnAllMap0Slimes(); // Will ONLY assign questions that were not completed
+	    }
 
-	// Spawn one slime for each map0 question, assign answerIndex and mark assigned
-	private void spawnAllMap0Slimes() {
-		Random rand = new Random();
-		HashSet<Point> usedTiles = new HashSet<>();
-
-		for (int k = 0; k < gp.map0QuestionsOrder.length; k++) {
-			int qidx = gp.map0QuestionsOrder[k];
-			if (qidx < 0 || qidx >= gp.map0JSON.size())
-				continue;
-			if (gp.questionCompleted[qidx])
-				continue; // skip already completed if any
-
-			// try to create and place slime
-			Entity monster = null;
-			try {
-				monster = MON_GreenSlime.class.getConstructor(GamePanel.class).newInstance(gp);
-				((MON_GreenSlime) monster).answerIndex = qidx;
-				gp.markQuestionAssigned(qidx);
-			} catch (Exception e) {
-				e.printStackTrace();
-				continue;
-			}
-
-			boolean placed = false;
-			// attempt a number of times to find a non-blocked tile
-			for (int attempt = 0; attempt < 200 && !placed; attempt++) {
-				int randomTileX = rand.nextInt(Math.max(1, gp.maxWorldCol));
-				int randomTileY = rand.nextInt(Math.max(1, gp.maxWorldRow));
-				Point pos = new Point(randomTileX, randomTileY);
-				if (usedTiles.contains(pos))
-					continue;
-				boolean blocked = gp.tileM.tile[gp.tileM.mapTileNum[0][randomTileX][randomTileY]].collision;
-				if (blocked)
-					continue;
-
-				// find empty monster slot
-				for (int j = 0; j < gp.monster[0].length; j++) {
-					if (gp.monster[0][j] == null) {
-						addMonster(0, j, monster, randomTileX, randomTileY);
-						usedTiles.add(pos);
-						placed = true;
-						break;
-					}
-				}
-			}
-			if (!placed) {
-				// if couldn't place, unassign to avoid dangling questionAssigned
-				gp.markQuestionUnassigned(qidx);
-			}
-		}
-		// All slimes for map0 have been attempted to spawn; UI will show only assigned
-		// ones
+	    // For other maps/waves, retained legacy mechanism
+	    // startNextWave(1);
 	}
+
+	private void spawnAllMap0Slimes() {
+	    Random rand = new Random();
+	    HashSet<Point> usedTiles = new HashSet<>();
+
+	    for (int k = 0; k < gp.map0QuestionsOrder.length; k++) {
+	        int qidx = gp.map0QuestionsOrder[k];
+	        if (qidx < 0 || qidx >= gp.map0JSON.size()) continue;
+	        if (gp.questionCompleted[qidx]) continue; // skip already completed
+
+	        // Always assign once we can spawn one!
+	        Entity monster;
+	        try {
+	            monster = MON_GreenSlime.class.getConstructor(GamePanel.class).newInstance(gp);
+	            ((MON_GreenSlime) monster).answerIndex = qidx;
+	        } catch (Exception e) {
+	            e.printStackTrace();
+	            continue;
+	        }
+
+	        boolean placed = false;
+	        for (int attempt = 0; attempt < 200 && !placed; attempt++) {
+	            int randomTileX = rand.nextInt(Math.max(1, gp.maxWorldCol));
+	            int randomTileY = rand.nextInt(Math.max(1, gp.maxWorldRow));
+	            Point pos = new Point(randomTileX, randomTileY);
+
+	            if (usedTiles.contains(pos)) continue;
+	            boolean blocked = gp.tileM.tile[gp.tileM.mapTileNum[0][randomTileX][randomTileY]].collision;
+	            if (blocked) continue;
+
+	            for (int j = 0; j < gp.monster[0].length; j++) {
+	                if (gp.monster[0][j] == null) {
+	                    addMonster(0, j, monster, randomTileX, randomTileY);
+	                    gp.markQuestionAssigned(qidx);
+	                    usedTiles.add(pos);
+	                    placed = true;
+	                    break;
+	                }
+	            }
+	        }
+	        if (!placed) {
+	            gp.markQuestionUnassigned(qidx); // for sanity; no assignment if no monster
+	        }
+	    }
+	}
+
 
 	// The original wave mechanism retained for other maps
 	public void startNextWave(int mapNum) {
