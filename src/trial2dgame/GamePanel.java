@@ -94,6 +94,10 @@ public class GamePanel extends JPanel implements Runnable {
     public final int tradeState = 8;
     public final int mapState = 9;
     public final int battleState = 10;
+    
+    public boolean showQuestion = false;  // UI-level override if needed
+    public String questionText = "";
+    ArrayList<String> questionChoices = new ArrayList<>();
         
     public GamePanel() {
         this.setPreferredSize(new Dimension(screenWidth, screenHeight));
@@ -136,21 +140,42 @@ public class GamePanel extends JPanel implements Runnable {
 
     // Ella updates
     public void resetGame(boolean restart) {
+    	
+    	if (questionCompleted == null || questionAssigned == null) {
+    	    // This will load map0JSON, map0QuestionsOrder, questionCompleted, questionAssigned
+    	    loadMap0JSON("res/data/all_question_chap1.json");
+    	}
+    	
+        // Clear all monsters from all maps
+        for (int m = 0; m < monster.length; m++) {
+            for (int i = 0; i < monster[m].length; i++) {
+                monster[m][i] = null;
+            }
+        }
         player.setDefaultPositions();
         player.restoreStatus();
         player.resetCounter();
         aSetter.setNPC();
-        aSetter.setMonster();  // Respawns monsters and assigns questions
-        
-        // ADDED: Always refresh question UI after respawning monsters
-        setNextQuestion();
-        
-        // ADDED: Force-refresh UI flags for retry (if a question is active)
+
+        // --- Reset question state BEFORE monsters are placed ---
+        if (restart) {
+            for (int i = 0; i < questionCompleted.length; i++) {
+                questionCompleted[i] = false;
+                questionAssigned[i] = false;
+            }
+            shuffleQuestions();
+        }
+        // Always clear UI question state before doing monster placement
+        // so that monsters are placed for current "assigned" questions
+        setNextQuestion(); // Sets up first question
+        aSetter.setMonster(); // Now spawns slimes for newly-assigned questions
+
+        // Force refresh UI
         if (currentQuestionIndex >= 0) {
             ui.showQuestion = true;
             ui.questionText = activeQuestionText;
-            // Also populate ui.questionChoices if needed (e.g., from the JSON)
             ui.questionChoices.clear();
+
             if (map0JSON != null && currentQuestionIndex < map0JSON.size()) {
                 org.json.simple.JSONObject questionObj = (org.json.simple.JSONObject) map0JSON.get(currentQuestionIndex);
                 org.json.simple.JSONArray choicesArray = (org.json.simple.JSONArray) questionObj.get("choices");
@@ -161,29 +186,21 @@ public class GamePanel extends JPanel implements Runnable {
                 }
             }
         }
-        
+
         eManager.setup();
-        
-        // ADDED: Reset UI question state to prevent stale question box after reset
-        ui.showQuestion = false;
-        ui.questionText = "";
-        ui.questionChoices.clear();
-        currentQuestionIndex = -1;
-        activeQuestionText = "";
-        
+
+        // Clean UI state if no question is active
+        if (currentQuestionIndex < 0) {
+            ui.showQuestion = false;
+            ui.questionText = "";
+            ui.questionChoices.clear();
+        }
+        activeQuestionText = (currentQuestionIndex >= 0) ? ui.questionText : "";
+        // Optionally reset other fields as needed...
         if (restart) {
             player.setDefaultValues();
             aSetter.setObject();
-            // ADDED - Tine: Keep day/dusk cycle reset
             eManager.lighting.resetDay();
-            
-            // ADDED: Reset question progress and reshuffle for a fresh start
-            for (int i = 0; i < questionCompleted.length; i++) {
-                questionCompleted[i] = false;
-                questionAssigned[i] = false;
-            }
-            shuffleQuestions();
-            setNextQuestion();  // Reassign the first question after shuffle
         }
     }
 
@@ -473,6 +490,7 @@ public class GamePanel extends JPanel implements Runnable {
     }
 
     // Ella updates
+    // Set the next active question ONLY if none is active right now
     public void setNextQuestion() {
         System.out.println("DEBUG setNextQuestion START: questionCompleted length=" + (questionCompleted != null ? questionCompleted.length : 0) + ", questionAssigned length=" + (questionAssigned != null ? questionAssigned.length : 0));
         currentQuestionIndex = -1;
@@ -485,19 +503,37 @@ public class GamePanel extends JPanel implements Runnable {
             System.out.println("DEBUG setNextQuestion: map0QuestionsOrder is null or empty");
             return;
         }
-
+        
+        // Scan for the next assigned & not completed question
         for (int i = 0; i < map0QuestionsOrder.length; i++) {
             int idx = map0QuestionsOrder[i];
             System.out.println("DEBUG setNextQuestion LOOP: i=" + i + ", idx=" + idx + ", questionCompleted[" + idx + "]=" + (idx < questionCompleted.length ? questionCompleted[idx] : "out of bounds") + ", questionAssigned[" + idx + "]=" + (idx < questionAssigned.length ? questionAssigned[idx] : "out of bounds"));
-            if (idx >= 0 && idx < questionCompleted.length && !questionCompleted[idx] && questionAssigned[idx]) {
+
+            if (idx < 0 || idx >= questionCompleted.length) continue;
+
+            if (!questionCompleted[idx] && questionAssigned[idx]) {
+
                 currentQuestionIndex = idx;
-                // ... rest of the code ...
-                System.out.println("DEBUG setNextQuestion: Found active question at idx=" + idx);
-                break;
+
+                JSONObject qObj = (JSONObject) map0JSON.get(idx);
+                activeQuestionText = (String) qObj.get("question");
+
+                // Load choices
+                org.json.simple.JSONArray choicesArray = (org.json.simple.JSONArray) qObj.get("choices");
+                ui.questionChoices.clear();
+                if (choicesArray != null) {
+                    for (Object c : choicesArray) ui.questionChoices.add((String) c);
+                }
+
+                // Keep UI active
+                ui.showQuestion = true;
+                ui.questionText = activeQuestionText;
+
+                return; // STOP IMMEDIATELY after setting 1 question
             }
         }
-        System.out.println("DEBUG setNextQuestion END: currentQuestionIndex=" + currentQuestionIndex + ", ui.showQuestion=" + ui.showQuestion);
     }
+
     
     
     // set the next active question (only picks assigned & not completed)
