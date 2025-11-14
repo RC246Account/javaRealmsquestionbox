@@ -268,15 +268,10 @@ public class UI {
         if (gp.gameState == gp.tradeState) drawTradeScreen();
 
         // Always draw question box if either UI requests it or GamePanel has an active question on map0
-        // Ella - update drawQuestionBox disappear during retry or pause state
-        System.out.println("DEBUG UI.draw: showQuestion=" + showQuestion + ", currentQuestionIndex=" + gp.currentQuestionIndex + ", currentMap=" + gp.currentMap + ", gameState=" + gp.gameState);
+        // Ella - update drawQuestionBox disappear during retry or pause 
         if ((showQuestion || gp.currentQuestionIndex >= 0) && gp.currentMap == 0 && gp.gameState != gp.pauseState && gp.gameState != gp.gameOverState) {
-            System.out.println("DEBUG: Drawing question box");
             drawQuestionBox(g2);
-        } else {
-            System.out.println("DEBUG: Not drawing question box");
         }
-        
     }
 
     public void drawTitleScreen() {
@@ -332,8 +327,7 @@ public class UI {
 
     // Draw the permanent question box (top centered) with Left/Right toggle hint
     public void drawQuestionBox(Graphics2D g2) {
-        String text = null;
-
+    		String text = null;
         // Prefer UI's cached questionText if set, otherwise read from GamePanel's currentQuestionIndex
         if (this.questionText != null && !this.questionText.isEmpty()) {
             text = this.questionText;
@@ -345,7 +339,6 @@ public class UI {
                 text = gp.activeQuestionText;
             }
         }
-
         if (text == null || text.isEmpty()) return;
 
         // ADDED - Tine: Calculate height based on content
